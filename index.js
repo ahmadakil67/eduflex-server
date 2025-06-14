@@ -31,6 +31,140 @@ async function run() {
       .db("courseManagement")
       .collection("enrollments");
 
+    const discussionsCollection = client
+      .db("courseManagement")
+      .collection("discussions");
+    // Get all discussions
+    app.get("/discussions", async (req, res) => {
+      const discussions = await discussionsCollection
+        .find()
+        .sort({ timestamp: -1 })
+        .toArray();
+      res.status(200).json(discussions);
+    });
+
+    // Create a new discussion
+    app.post("/discussions", async (req, res) => {
+      const { content, author, authorId } = req.body;
+      const newDiscussion = {
+        content,
+        author,
+        authorId,
+        timestamp: new Date(),
+        votes: 0,
+        replies: [],
+      };
+      const result = await discussionsCollection.insertOne(newDiscussion);
+      res.status(201).json(result.ops[0]);
+    });
+
+    // Upvote a post
+    app.put("/discussions/vote/:id", async (req, res) => {
+      const postId = req.params.id;
+
+      try {
+        // Find the post by id
+        const post = await discussionsCollection.findOne({
+          _id: ObjectId(postId),
+        });
+
+        // If the post exists, increment the votes
+        if (post) {
+          await discussionsCollection.updateOne(
+            { _id: ObjectId(postId) },
+            { $inc: { votes: 1 } }
+          );
+
+          // Fetch the updated post after incrementing the votes
+          const updatedPost = await discussionsCollection.findOne({
+            _id: ObjectId(postId),
+          });
+
+          // Send the updated post as the response
+          res.status(200).json(updatedPost);
+        } else {
+          res.status(404).json({ message: "Post not found" });
+        }
+      } catch (error) {
+        console.error("Error upvoting post:", error);
+        res
+          .status(500)
+          .json({ message: "Error upvoting post", error: error.message });
+      }
+    });
+
+    // // Add a reply
+    // app.put("/discussions/reply/:id", async (req, res) => {
+    //   const postId = req.params.id;
+    //   const { content, author, authorId } = req.body; // Ensure the authorId is being passed
+    //   const newReply = { content, author, authorId, timestamp: new Date() };
+
+    //   const post = await discussionsCollection.findOne({
+    //     _id: ObjectId(postId),
+    //   });
+    //   if (post) {
+    //     await discussionsCollection.updateOne(
+    //       { _id: ObjectId(postId) },
+    //       { $push: { replies: newReply } }
+    //     );
+    //     res.status(200).json({ message: "Reply added!" });
+    //   } else {
+    //     res.status(404).json({ message: "Post not found" });
+    //   }
+    // });
+
+    // Edit a post
+    app.put("/discussions/:id", async (req, res) => {
+      const postId = req.params.id;
+      const { content } = req.body;
+
+      const post = await discussionsCollection.findOne({
+        _id: ObjectId(postId),
+      });
+      if (post) {
+        await discussionsCollection.updateOne(
+          { _id: ObjectId(postId) },
+          { $set: { content } }
+        );
+        res.status(200).json({ message: "Post updated!" });
+      } else {
+        res.status(404).json({ message: "Post not found" });
+      }
+    });
+
+    // Delete Post
+    app.delete("/discussions/:id", async (req, res) => {
+      const postId = req.params.id;
+      const result = await discussionsCollection.deleteOne({
+        _id: ObjectId(postId),
+      });
+
+      if (result.deletedCount === 1) {
+        res.status(200).json({ message: "Post deleted!" });
+      } else {
+        res.status(404).json({ message: "Post not found" });
+      }
+    });
+
+    // Delete a reply
+    app.delete("/discussions/reply/:postId/:replyIndex", async (req, res) => {
+      const { postId, replyIndex } = req.params;
+
+      const post = await discussionsCollection.findOne({
+        _id: ObjectId(postId),
+      });
+      if (post && post.replies.length > replyIndex) {
+        post.replies.splice(replyIndex, 1); // Remove the reply at replyIndex
+        await discussionsCollection.updateOne(
+          { _id: ObjectId(postId) },
+          { $set: { replies: post.replies } }
+        );
+        res.status(200).json({ message: "Reply deleted!" });
+      } else {
+        res.status(404).json({ message: "Reply not found" });
+      }
+    });
+
     app.get("/courses", async (req, res) => {
       const { email } = req.query;
       const query = email ? { userEmail: email } : {};
@@ -197,46 +331,6 @@ async function run() {
     //     res.status(500).json({ message: "Error checking enrollments", error: error.message });
     //   }
     // });
-
-    // Define Mongoose Schema for Discussions
-    const discussionSchema = new Schema({
-      content: String,
-      author: String,
-      authorId: String,
-      votes: { type: Number, default: 0 },
-      timestamp: { type: Date, default: Date.now },
-      replies: [
-        {
-          content: String,
-          author: String,
-          authorId: String,
-          timestamp: { type: Date, default: Date.now },
-        },
-      ],
-    });
-
-    const Discussion = mongoose.model("Discussion", discussionSchema);
-
-    // Create a new discussion post
-    app.post("/api/discussions", async (req, res) => {
-      try {
-        const newDiscussion = new Discussion(req.body);
-        await newDiscussion.save();
-        res.status(201).json(newDiscussion);
-      } catch (error) {
-        res.status(500).json({ message: "Error saving discussion", error });
-      }
-    });
-
-    // Get all discussions
-    app.get("/api/discussions", async (req, res) => {
-      try {
-        const discussions = await Discussion.find().sort({ timestamp: -1 }); // Sort by latest
-        res.status(200).json(discussions);
-      } catch (error) {
-        res.status(500).json({ message: "Error fetching discussions", error });
-      }
-    });
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
