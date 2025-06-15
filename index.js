@@ -168,7 +168,14 @@ async function run() {
     app.get("/courses", async (req, res) => {
       const { email } = req.query;
       const query = email ? { userEmail: email } : {};
-      const result = await courseCollection.find(query).toArray();
+
+      // Limit to 6 courses and sort by createdAt field in descending order (most recent first)
+      const result = await courseCollection
+        .find(query)
+        .sort({ createdAt: -1 }) // Sorting by createdAt in descending order
+        .limit(6) // Limiting to 6 results
+        .toArray();
+
       res.send(result);
     });
 
@@ -198,9 +205,14 @@ async function run() {
     });
 
     app.post("/courses", async (req, res) => {
-      const newRoommate = req.body;
-      console.log(newRoommate);
-      const result = await courseCollection.insertOne(newRoommate);
+      const newCourse = req.body;
+
+      // Make sure to add createdAt field to the course data
+      const result = await courseCollection.insertOne({
+        ...newCourse,
+        createdAt: new Date(), // Add current timestamp when creating the course
+      });
+
       res.send(result);
     });
 
@@ -304,7 +316,7 @@ async function run() {
               },
             },
             { $sort: { enrollments: -1 } }, // Sort by enrollments in descending order
-            { $limit: 3 }, // Limit to the top 3 most enrolled courses
+            { $limit: 6 }, // Limit to the top 3 most enrolled courses
           ])
           .toArray(); // Convert the aggregation result to an array
 
