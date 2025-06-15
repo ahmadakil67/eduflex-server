@@ -216,7 +216,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/enrollment/:courseId", async (req, res) => {
+    app.get("/enrollments/:courseId", async (req, res) => {
       const userEmail = req.query.email;
       const courseId = req.params.courseId;
 
