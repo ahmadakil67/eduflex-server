@@ -5,7 +5,12 @@ const app = express();
 
 const cors = require("cors");
 
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "https://event-explorer-cdca0.web.app/"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 require("dotenv").config();
